@@ -1,473 +1,469 @@
-# 🪂 AirdropRadar V1 Documentation
+# 🪂 AirdropRadar V1.1 Documentation
 
 ## 1. Project Overview
 
-AirdropRadar is a Telegram-based crypto airdrop discovery and analysis system.
+AirdropRadar is a Telegram-based crypto airdrop intelligence system.
 
-Its purpose is to:
+Its purpose is to discover, qualify, classify, verify, score, store, monitor, and explain potential airdrop opportunities.
 
-- Discover potential airdrop opportunities.
-- Filter irrelevant discoveries.
-- Classify opportunities by their primary participation mechanism.
-- Verify available project information.
-- Score opportunities.
-- Store results in SQLite.
-- Monitor stored opportunities for meaningful changes.
-- Track historical changes.
-- Alert Telegram subscribers.
-- Allow users to browse and inspect stored opportunities.
-
-AirdropRadar V1 focuses on building a reliable foundation before adding more advanced functionality.
 
 ---
 
-# 2. V1 Processing Pipeline
+## 2. V1.1 Processing Pipeline
 
-The V1 pipeline is:
+The main processing flow is:
 
-DISCOVER
-↓
-QUALIFY
-↓
-CLASSIFY
-↓
-VERIFY
-↓
-SCORE
-↓
-STORE
-↓
-MONITOR
-↓
-HISTORY
-↓
-ALERT
-↓
-SUBSCRIPTIONS
-↓
-TELEGRAM INTERFACE
+DISCOVER → QUALIFY → CLASSIFY → VERIFY → PARTICIPATION → LIFECYCLE → RISK → SCORE → STORE → MONITOR → HISTORY → ALERT
+
+Each stage contributes information used by later stages.
+
+Unavailable external data is treated as unavailable evidence rather than automatically interpreted as proof of fraud.
 
 ---
 
-# 3. Core Components
+## 3. Production Components
 
-## bot.py
+### bot.py
 
-Main Telegram bot application.
+Telegram interface and user interaction layer.
 
 Responsibilities include:
 
-- Telegram command handling.
-- Inline button handling.
-- Airdrop browsing.
-- Airdrop details.
+- Telegram commands.
+- Inline keyboards.
+- Opportunity browsing.
+- Opportunity analysis views.
+- My Radar.
+- Alert Controls.
 - Subscriber management.
-- Discovery alerts.
-- Monitoring alerts.
-- Automatic scanning.
-- Automatic monitoring.
-- Telegram application startup.
+- Scan commands.
+- Status reporting.
 
-Main commands:
+### config.py
 
-- `/start`
-- `/help`
-- `/airdrop`
-- `/latest`
-- `/status`
-- `/check`
-- `/subscribe`
-- `/unsubscribe`
+Central configuration and environment settings. Sensitive credentials are loaded from environment variables and must not be stored in tracked source files.
 
----
+### scanner.py
 
-## config.py
+Discovery and scanning layer. Collects candidate opportunities and passes discovered data into the processing pipeline.
 
-Central application configuration.
+### filter.py
 
-Responsibilities:
+Qualification and classification layer. Handles filtering, classification, participation-based category detection, risk integration, verification integration, and scoring integration.
 
-- Load `.env`.
-- Configure database location.
-- Configure alert threshold.
-- Configure scan interval.
-- Define RSS discovery sources.
-- Validate the Telegram bot token.
+Current classifier version: 2.12.6
 
-Current defaults:
-
-- Alert threshold: `60`
-- Scan interval: `1800` seconds
-- Database: `airdrops.db`
-
----
-
-## scanner.py
-
-Discovery support component.
-
-Used for discovering potential opportunities from configured sources.
-
----
-
-## filter.py
-
-Main discovery and classification pipeline.
-
-Responsibilities include:
-
-- Running the live scan.
-- Qualification/filtering.
-- Classification.
-- Producing classified airdrop candidates.
-
-Current classifier version:
-
-`2.12.6`
-
-Classifier entry point:
-
-`run_live_classification()`
-
----
-
-# 4. Airdrop Categories
-
-AirdropRadar V1 uses eight categories:
-
-1. Retroactive
-2. Holder
-3. Bounty
-4. Testnet
-5. Points
-6. Liquidity
-7. Activity
-8. Other
-
-The classifier is designed to identify the:
-
-> PRIMARY participation/reward mechanism
-
-rather than simply matching isolated keywords.
-
-The classifier has been calibrated against reviewed records.
-
-Current calibration status:
+Current reviewed calibration:
 
 - Reviewed records: 35
 - Mismatches: 0
-- Calibration accuracy: 100%
+- Accuracy: 100%
+
+### qualifier.py
+
+Determines whether discovered items meet qualification requirements for further processing.
+
+### verifier.py
+
+Handles verification and evidence collection for discovered opportunities.
+
+### api_sources.py
+
+Provides external API and source integrations used for intelligence signals. Sources may become unavailable, rate-limited, or time out.
+
+### intelligence.py
+
+Provides intelligence used by the scoring and monitoring pipeline.
+
+### scorer.py
+
+Calculates opportunity scores and confidence using available verification, market, DeFi, warning, evidence, and risk signals.
+
+Scores are intelligence signals and are not guarantees.
+
+### database.py
+
+SQLite persistence layer. Stores discovered opportunities and V1.1 intelligence fields, including risk and monitoring information. SQLite foreign-key support is enabled.
+
+### tracker.py
+
+Handles tracking and monitoring of stored opportunities and preserves relevant historical information.
+
+### lifecycle.py
+
+Determines lifecycle state. Supported states include Upcoming, Active, Ending Soon, Ended, and Unknown.
+
+Unknown is used when available evidence is insufficient to determine lifecycle reliably.
+
+### participation.py
+
+Analyzes participation requirements and produces structured intelligence for the Tasks view, including tasks, requirements, estimated time, estimated cost, and difficulty.
+
+These values are estimates and are not guarantees.
+
+### risk_intelligence.py
+
+Analyzes evidence-based risk signals including verification availability, source accessibility, official-source presence, and other warning indicators.
+
+A detected risk signal does not automatically mean an opportunity is a scam.
+
 
 ---
 
-# 5. verifier.py
+## 4. Opportunity Categories
 
-Verification and project intelligence component.
+AirdropRadar currently supports these primary categories:
 
-Responsibilities include:
+- 🎯 Points
+- 🧪 Testnet
+- 🔄 Retroactive
+- 🏆 Bounty
+- 👑 Holder
+- 💧 Liquidity
+- 🔗 Activity
+- 📦 Other
 
-- Checking source pages.
-- Checking URL safety.
-- Blocking unsafe URLs.
-- Blocking URL shorteners.
-- Detecting suspicious content.
-- Finding project-owned domains.
-- Finding official project links.
-- Checking market intelligence.
-- Checking DeFi intelligence.
-- Producing verification status and verification level.
-
-The verifier also handles unavailable pages without automatically treating them as scams.
+Classification is based on the detected participation mechanism and classifier rules.
 
 ---
 
-# 6. api_sources.py
+## 5. Telegram Commands
 
-External API intelligence component.
+The production Telegram command menu includes:
 
-Current integrations:
+### /start
 
-- CoinGecko
-- DeFiLlama
+Displays the AirdropRadar welcome interface and main navigation.
 
-The API layer includes:
+### /airdrop
 
-- Request timeout handling.
-- Retry handling.
-- Rate-limit handling.
-- HTTP error handling.
-- Connection error handling.
-- Invalid JSON handling.
-- CoinGecko request spacing.
+Opens the category browser for available opportunities.
 
-Current API intelligence version:
+### /latest
 
-`v6`
+Displays the newest stored opportunities.
 
----
+### /help
 
-# 7. scorer.py
+Displays available commands and basic usage information.
 
-Airdrop scoring component.
+### /subscribe
 
-The scorer produces a score used by AirdropRadar to determine the quality and alert-worthiness of opportunities.
+Subscribes the Telegram user to supported alerts.
 
-The Telegram discovery alert threshold is configured through:
+### /unsubscribe
 
-`ALERT_THRESHOLD`
+Removes the Telegram user from alert subscriptions.
 
-Current default:
+### /status
 
-`60`
+Displays system and database status information.
+
+### /check
+
+Runs a scan and processing cycle.
 
 ---
 
-# 8. database.py
+## 6. Opportunity Analysis
 
-SQLite persistence layer.
+An opportunity can expose several intelligence views.
 
-Current database:
+### 📊 Overview
 
-`airdrops.db`
+Provides the main opportunity summary, including:
 
-The database stores:
-
-- Airdrop records.
-- Classification.
-- Scores.
+- Opportunity type.
+- Score.
 - Confidence.
-- Verification information.
-- Official links.
+- Verification.
+- Risk.
+- Lifecycle.
+- Market information.
+- DeFi information.
 - Warnings.
-- Market intelligence.
-- DeFi intelligence.
-- Monitoring timestamps.
-- Previous/current score values.
-- Previous/current confidence values.
-- Change timestamps.
-- Next monitoring timestamps.
+- Source.
+- Opportunity link.
 
-Database tables:
+### Tasks
 
-- `airdrops`
-- `airdrop_history`
-- `subscribers`
-- `sent_alerts`
-- `monitoring_alerts`
+Shows detected participation requirements and estimated effort.
 
----
+### Evidence
 
-# 9. Monitoring System
+Shows evidence AirdropRadar was able to detect or verify, including verification state, discovery source, and official links when detected.
 
-## tracker.py
+Evidence describes what the system could verify or detect. It does not guarantee legitimacy.
 
-Monitoring component.
+### Risk
 
-Responsibilities include:
+Displays risk level and detected risk signals. Risk intelligence is evidence-based and is not a definitive scam verdict.
 
-- Re-checking stored opportunities.
-- Comparing previous and current scores.
-- Comparing confidence.
-- Detecting meaningful changes.
-- Recording monitoring history.
-- Tracking changes over time.
+### Score
 
-V1 also confirms meaningful changes before sending monitoring alerts.
+Displays:
+
+- Score out of 100.
+- Score band.
+- Confidence.
+- Verification signal.
+- Market signal.
+- DeFi signal.
+- Risk factor.
+- Score explanation.
+
 
 ---
 
-# 10. Alert System
+## 7. My Radar
 
-AirdropRadar V1 has two major alert systems.
-
-## Discovery Alerts
-
-Sent when a newly discovered opportunity:
-
-- Meets the alert threshold.
-- Has a usable URL.
-- Has not already been alerted to that subscriber.
-
-Duplicate protection uses the subscriber and airdrop URL.
-
----
-
-## Monitoring Alerts
-
-Sent when a previously stored opportunity experiences a meaningful change.
-
-Monitoring alerts include:
-
-- Airdrop name.
-- Previous score.
-- New score.
-- Score difference.
-- Confidence changes.
-- Detected changes.
-- Airdrop link.
-
-Monitoring alert history prevents the same monitoring event from being repeatedly sent.
-
----
-
-# 11. Telegram Subscription System
-
-Users can subscribe with:
-
-`/subscribe`
-
-Users can unsubscribe with:
-
-`/unsubscribe`
-
-Subscription status can be checked through:
-
-`/status`
-
-Subscribers receive automatic alert-worthy discoveries and monitoring alerts.
-
----
-
-# 12. Category Browser
-
-The Telegram bot provides an interactive category browser.
+My Radar allows users to track individual opportunities.
 
 Users can:
 
-- Browse all airdrops.
-- Browse by category.
-- Move between pages.
-- Open individual airdrop details.
-- Return to the category menu.
+- Track an opportunity.
+- View tracked opportunities.
+- Open tracked opportunity analysis.
+- Untrack opportunities.
 
-Pagination currently displays up to 10 airdrops per page.
-
----
-
-# 13. Airdrop Details
-
-Each stored opportunity can display:
-
-- Name.
-- Category.
-- Description.
-- Score.
-- Confidence.
-- Verification level.
-- Market signal.
-- DeFi signal.
-- Warnings.
-- Official project links.
-- Discovery source.
-
-A warning is displayed to users that AirdropRadar does not guarantee legitimacy, eligibility, or payment.
+Tracked opportunities are stored so monitoring can identify meaningful changes.
 
 ---
 
-# 14. Automatic Jobs
+## 8. Alert Controls
 
-AirdropRadar V1 runs two major automatic jobs.
+Users can control supported notification settings through the Alert Controls interface.
 
-## Automatic Scanning
-
-The bot automatically scans configured discovery sources according to:
-
-`SCAN_INTERVAL`
-
-Current default:
-
-`1800 seconds`
+Alert settings are handled independently from opportunity browsing and analysis.
 
 ---
 
-## Automatic Monitoring
+## 9. Monitoring and Alerts
 
-Stored opportunities are automatically checked for meaningful changes.
+AirdropRadar monitors stored opportunities for meaningful changes.
 
-Current monitoring interval:
+Monitoring can consider signals such as:
 
-`3600 seconds`
+- Score changes.
+- TVL changes.
+- Market-rank changes.
+- Market or DeFi disappearance.
+- Other tracked intelligence changes.
+
+Historical snapshots help prevent a single temporary source problem from being treated as a confirmed disappearance when confirmation is required.
+
+The system distinguishes unavailable external data from confirmed negative evidence.
 
 ---
 
-# 15. Current Database State
+## 10. Current Database State
 
-At the latest V1 integrity check:
+Current database snapshot:
 
-- Total airdrops: 114
-- High confidence: 27
-- Medium confidence: 53
-- Low confidence: 34
-- Subscribers: 1
-- Sent discovery alerts: 28
-- Monitoring alerts: 17
-- Tracked airdrops: 45
-- Detected changes: 32
+- Total discoveries: 129
+- High confidence: 14
+- Medium confidence: 99
+- Low confidence: 16
+- Subscribers: 0
 
-Current category counts:
+Current category distribution:
 
-- Points: 34
-- Testnet: 15
-- Retroactive: 0
+- Activity: 46
 - Bounty: 2
-- Holder: 1
+- Holder: 3
 - Liquidity: 16
-- Activity: 41
 - Other: 5
+- Points: 39
+- Retroactive: 0
+- Testnet: 18
+
+These values represent the database state at the time this documentation was prepared and will change as new scans are performed.
+
 
 ---
 
-# 16. V1 Health Status
+## 11. Testing and Hardening
 
-A dedicated health check is available through:
+V1.1 automated testing currently passes:
 
-`health_check.py`
+42 passed in 21.72s
 
-Latest health check:
+Test collection:
 
-- Database: PASS
-- Classifier: PASS
-- Verifier: PASS
-- API intelligence: PASS
-- Tracker: PASS
-- Discovery scanner: PASS
-- Telegram configuration: PASS
+42 tests collected
 
-Total:
+Production module compilation passes for:
 
-`7/7 PASSED`
+- bot.py
+- database.py
+- filter.py
+- scanner.py
+- scorer.py
+- tracker.py
+- lifecycle.py
+- participation.py
+- risk_intelligence.py
 
-Overall:
+V1.1 integration testing covered:
 
-`AirdropRadar V1 system health: HEALTHY`
-
----
-
-# 17. Requirements
-
-Current Python dependencies:
-
-- `python-dotenv>=1.0.0`
-- `feedparser>=6.0.0`
-- `python-telegram-bot[job-queue]>=21.0`
-
----
-
-# 18. Environment Configuration
-
-Secrets are stored in:
-
-`.env`
-
-The repository should never contain the real Telegram bot token.
-
-`.env.example` provides the configuration template.
+- /start
+- /airdrop
+- Category browsing
+- Opportunity analysis
+- Overview
+- Tasks
+- Evidence
+- Risk
+- Score
+- My Radar
+- Track
+- Untrack
+- Alert Controls
+- /latest
+- /status
+- /check
+- /subscribe
+- /unsubscribe
+- /help
 
 ---
 
-# 19. Starting AirdropRadar
+## 12. UTF-8 and Emoji Repair
+
+The Telegram bot previously contained UTF-8 mojibake caused by incorrectly decoded emoji characters.
+
+The repaired bot file was tested for common mojibake markers.
+
+Result:
+
+Remaining mojibake markers: 0
+
+Syntax check: PASS
+
+The repaired bot was subsequently run and verified successfully.
+
+All new documentation should remain UTF-8 encoded.
+
+---
+
+## 13. Environment and Secrets
+
+Sensitive configuration must remain in .env.
+
+The real Telegram bot token must never be:
+
+- Written into Python source code.
+- Added to documentation.
+- Committed to Git.
+- Posted publicly.
+
+.env is excluded from Git tracking.
+
+Before the final V1.1 push and freeze:
+
+1. Restore the real Telegram bot token in local .env.
+2. Run a final real-token Telegram smoke test.
+3. Run the final automated test suite.
+4. Confirm .env and the real token are not staged.
+5. Confirm the working tree and commit contain no secrets.
+6. Only then push and freeze V1.1.
+
+---
+
+## 14. Git Checkpoint
+
+The current hardening checkpoint is:
+
+9050b92 AirdropRadar V1.1 hardening checkpoint
+
+The checkpoint contains the V1.1 production changes and hardening work.
+
+At the time of documentation preparation, the working tree had been clean after the checkpoint commit.
+
+Development backup files and temporary scripts are excluded from the production Git checkpoint.
+
+---
+
+## 15. V1.1 Development Status
+
+V1.1 implementation and hardening work is substantially complete.
+
+Completed areas include:
+
+- Risk Intelligence.
+- UTF-8/emoji repair.
+- Alert Controls.
+- My Radar tracking.
+- Database support.
+- Existing V1 compatibility.
+- Telegram command flows.
+- Opportunity analysis views.
+- Integration testing.
+- Hardening test suite.
+
+Documentation is the current V1.1 completion step.
+
+---
+
+## 16. Important Intelligence Principles
+
+AirdropRadar provides intelligence, not guarantees.
+
+Important principles:
+
+1. A missing source does not automatically mean a scam.
+2. A detected risk signal does not automatically mean a scam.
+3. Verification describes what the system could confirm.
+4. Scores are intelligence signals, not guarantees.
+5. Participation estimates are estimates, not guarantees.
+6. Lifecycle states depend on available evidence.
+7. External APIs can fail, timeout, or rate-limit requests.
+8. Historical evidence can be used to confirm meaningful changes.
+9. Users should review available evidence before acting on an opportunity.
+
+---
+
+## 17. Requirements
+
+The project dependencies are listed in:
+
+
+requirements.txt
+
+The environment must have the required Python dependencies installed before running the bot or test suite.
+
+---
+
+## 18. Running AirdropRadar
 
 From the project directory:
 
-```powershell
+`powershell
 python bot.py
+`
+
+For automated tests:
+
+`powershell
+python -m pytest -q
+`
+
+For production module compilation:
+
+`powershell
+python -m py_compile bot.py database.py filter.py scanner.py scorer.py tracker.py lifecycle.py participation.py risk_intelligence.py
+`
+
+---
+
+## 19. V1.1 Finalization Rule
+
+AirdropRadar V1.1 follows this completion sequence:
+
+BUILD → TEST → INTEGRATE → VERIFY → DOCUMENT → CHECKPOINT → FINAL SMOKE TEST → FREEZE
+
+The final freeze should only happen after the real Telegram token has been restored locally, the final Telegram smoke test passes, automated tests pass, secrets are confirmed absent from Git, and the final production state is verified.
+
+---
+
+**AirdropRadar V1.1 — Documentation**
