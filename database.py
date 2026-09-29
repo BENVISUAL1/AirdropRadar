@@ -19,7 +19,6 @@ AIRDROP_TYPES = {
     "Other": "📦",
 }
 
-
 # -----------------------------------------
 # DATABASE CONNECTION
 # -----------------------------------------
@@ -77,6 +76,18 @@ def create_database():
 
             defi_signal TEXT,
 
+            risk_signals TEXT,
+
+            intelligence_risk_level TEXT,
+
+            risk_summary TEXT,
+
+            cross_source_matches TEXT,
+
+            matched_sources TEXT,
+
+            cross_source_match_count INTEGER DEFAULT 0,
+
             created_at TIMESTAMP
                 DEFAULT CURRENT_TIMESTAMP,
 
@@ -98,6 +109,27 @@ def create_database():
             chat_id INTEGER PRIMARY KEY,
 
             created_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS alert_preferences (
+
+            chat_id INTEGER PRIMARY KEY,
+
+            new_opportunity BOOLEAN DEFAULT 1,
+
+            monitoring_changes BOOLEAN DEFAULT 1,
+
+            ending_soon BOOLEAN DEFAULT 1,
+
+            risk_alerts BOOLEAN DEFAULT 1,
+
+            created_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP,
+
+            updated_at TIMESTAMP
                 DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -194,6 +226,37 @@ def create_database():
         )
     """)
 
+
+        # -------------------------------------
+    # PERSONAL TRACKING
+    # -------------------------------------
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tracked_airdrops (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            chat_id INTEGER NOT NULL,
+
+            airdrop_id INTEGER NOT NULL,
+
+            tracked_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP,
+
+            UNIQUE(
+                chat_id,
+                airdrop_id
+            ),
+
+            FOREIGN KEY (
+                airdrop_id
+            )
+            REFERENCES airdrops(id)
+            ON DELETE CASCADE
+        )
+    """)
+
+
     # -------------------------------------
     # DATABASE MIGRATION
     # -------------------------------------
@@ -230,6 +293,18 @@ def create_database():
         "last_change_at": "TIMESTAMP",
 
         "next_check_at": "TIMESTAMP",
+
+        "risk_signals": "TEXT",
+
+        "intelligence_risk_level": "TEXT",
+
+        "risk_summary": "TEXT",
+
+        "cross_source_matches": "TEXT",
+
+        "matched_sources": "TEXT",
+
+        "cross_source_match_count": "INTEGER DEFAULT 0",
     }
 
     for column, column_type in new_columns.items():
@@ -256,6 +331,18 @@ def create_database():
         WHERE
             airdrop_type IS NULL
             OR TRIM(airdrop_type) = ''
+    """)
+
+    # -------------------------------------
+    # NORMALIZE CROSS-SOURCE COUNTS
+    # -------------------------------------
+
+    cursor.execute("""
+        UPDATE airdrops
+
+        SET cross_source_match_count = 0
+
+        WHERE cross_source_match_count IS NULL
     """)
 
     connection.commit()
@@ -340,6 +427,67 @@ def save_airdrop(airdrop):
         )
     )
 
+    risk_intelligence = airdrop.get(
+        "risk_intelligence",
+        {}
+    )
+
+    if not isinstance(
+        risk_intelligence,
+        dict
+    ):
+        risk_intelligence = {}
+
+    risk_signals = risk_intelligence.get(
+        "signals",
+        []
+    )
+
+    intelligence_risk_level = (
+        risk_intelligence.get(
+            "risk_level",
+            ""
+        )
+    )
+
+    risk_summary = risk_intelligence.get(
+        "summary",
+        ""
+    )
+
+    # -------------------------------------
+    # CROSS-SOURCE INTELLIGENCE
+    # -------------------------------------
+
+    cross_source_matches = airdrop.get(
+        "cross_source_matches",
+        []
+    )
+
+    matched_sources = airdrop.get(
+        "matched_sources",
+        []
+    )
+
+    cross_source_match_count = airdrop.get(
+        "cross_source_match_count",
+        0
+    )
+
+    # Ensure count is always an integer
+    try:
+
+        cross_source_match_count = int(
+            cross_source_match_count
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
+
+        cross_source_match_count = 0
+
     # -------------------------------------
     # SAVE / UPDATE AIRDROP
     # -------------------------------------
@@ -357,17 +505,23 @@ def save_airdrop(airdrop):
             verified,
             verification_level,
             official_links,
+            risk_signals,
+            intelligence_risk_level,
+            risk_summary,
             warnings,
             market_signal,
-            defi_signal
+            defi_signal,
+            cross_source_matches,
+            matched_sources,
+            cross_source_match_count
         )
 
         VALUES (
             ?, ?, ?, ?, ?,
-            ?, ?,
-            ?, ?,
-            ?, ?,
-            ?, ?
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?
         )
 
         ON CONFLICT(url) DO UPDATE SET
@@ -392,6 +546,15 @@ def save_airdrop(airdrop):
             official_links =
                 excluded.official_links,
 
+            risk_signals =
+                excluded.risk_signals,
+
+            intelligence_risk_level =
+                excluded.intelligence_risk_level,
+
+            risk_summary =
+                excluded.risk_summary,
+
             warnings =
                 excluded.warnings,
 
@@ -399,7 +562,16 @@ def save_airdrop(airdrop):
                 excluded.market_signal,
 
             defi_signal =
-                excluded.defi_signal
+                excluded.defi_signal,
+
+            cross_source_matches =
+                excluded.cross_source_matches,
+
+            matched_sources =
+                excluded.matched_sources,
+
+            cross_source_match_count =
+                excluded.cross_source_match_count
     """, (
 
         airdrop.get(
@@ -449,6 +621,14 @@ def save_airdrop(airdrop):
         ),
 
         json.dumps(
+            risk_signals
+        ),
+
+        intelligence_risk_level,
+
+        risk_summary,
+
+        json.dumps(
             warnings
         ),
 
@@ -458,7 +638,17 @@ def save_airdrop(airdrop):
 
         json.dumps(
             defi_signal
-        )
+        ),
+
+        json.dumps(
+            cross_source_matches
+        ),
+
+        json.dumps(
+            matched_sources
+        ),
+
+        cross_source_match_count
     ))
 
     # -------------------------------------
@@ -619,7 +809,19 @@ def get_latest_airdrops(
 
             next_check_at,
 
-            airdrop_type
+            airdrop_type,
+
+            risk_signals,
+
+            intelligence_risk_level,
+
+            risk_summary,
+
+            cross_source_matches,
+
+            matched_sources,
+
+            cross_source_match_count
 
         FROM airdrops
 
@@ -636,6 +838,61 @@ def get_latest_airdrops(
 
     return results
 
+
+# -----------------------------------------
+# GET AIRDROPS FOR LIFECYCLE FILTERING
+# -----------------------------------------
+
+def get_airdrops_for_lifecycle(
+    limit=1000
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            name,
+            url,
+            description,
+            source,
+            score,
+            confidence,
+            verified,
+            verification_level,
+            official_links,
+            warnings,
+            market_signal,
+            defi_signal,
+            created_at,
+            last_checked_at,
+            previous_score,
+            previous_confidence,
+            last_change_at,
+            next_check_at,
+            airdrop_type,
+            risk_signals,
+            intelligence_risk_level,
+            risk_summary,
+            cross_source_matches,
+            matched_sources,
+            cross_source_match_count
+
+        FROM airdrops
+
+        ORDER BY created_at DESC
+
+        LIMIT ?
+    """, (
+        limit,
+    ))
+
+    results = cursor.fetchall()
+
+    connection.close()
+
+    return results
 
 # -----------------------------------------
 # GET AIRDROPS BY TYPE
@@ -684,7 +941,13 @@ def get_airdrops_by_type(
 
             defi_signal,
 
-            created_at
+            created_at,
+
+            cross_source_matches,
+
+            matched_sources,
+
+            cross_source_match_count
 
         FROM airdrops
 
@@ -757,7 +1020,19 @@ def get_airdrop_by_id(airdrop_id):
 
             next_check_at,
 
-            airdrop_type
+            airdrop_type,
+
+            risk_signals,
+
+            intelligence_risk_level,
+
+            risk_summary,
+
+            cross_source_matches,
+
+            matched_sources,
+
+            cross_source_match_count
 
         FROM airdrops
 
@@ -1021,6 +1296,105 @@ def get_subscribers():
         for row in results
     ]
 
+def create_alert_preferences(chat_id):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT OR IGNORE INTO alert_preferences (
+            chat_id,
+            new_opportunity,
+            monitoring_changes,
+            ending_soon,
+            risk_alerts
+        )
+        VALUES (?, 1, 1, 1, 1)
+    """, (chat_id,))
+
+    connection.commit()
+    connection.close()
+
+
+def get_alert_preferences(chat_id):
+
+    create_alert_preferences(chat_id)
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            new_opportunity,
+            monitoring_changes,
+            ending_soon,
+            risk_alerts
+        FROM alert_preferences
+        WHERE chat_id = ?
+    """, (chat_id,))
+
+    result = cursor.fetchone()
+
+    connection.close()
+
+    if result is None:
+        return {
+            "new_opportunity": True,
+            "monitoring_changes": True,
+            "ending_soon": True,
+            "risk_alerts": True,
+        }
+
+    return {
+        "new_opportunity": bool(result[0]),
+        "monitoring_changes": bool(result[1]),
+        "ending_soon": bool(result[2]),
+        "risk_alerts": bool(result[3]),
+    }
+
+
+def set_alert_preference(
+    chat_id,
+    preference,
+    enabled
+):
+
+    allowed_preferences = {
+        "new_opportunity",
+        "monitoring_changes",
+        "ending_soon",
+        "risk_alerts",
+    }
+
+    if preference not in allowed_preferences:
+        return False
+
+    create_alert_preferences(chat_id)
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        f"""
+        UPDATE alert_preferences
+
+        SET
+            {preference} = ?,
+            updated_at = CURRENT_TIMESTAMP
+
+        WHERE chat_id = ?
+        """,
+        (1 if enabled else 0, chat_id)
+    )
+
+    connection.commit()
+
+    updated = cursor.rowcount > 0
+
+    connection.close()
+
+    return updated
+
 
 def get_subscriber_count():
 
@@ -1093,6 +1467,39 @@ def record_alert(
 
     connection.commit()
     connection.close()
+
+
+
+# -----------------------------------------
+# LATEST MONITORING HISTORY
+# -----------------------------------------
+
+def get_latest_monitoring_history_id(
+    airdrop_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT id
+        FROM monitoring_history
+        WHERE airdrop_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+    """, (
+        airdrop_id,
+    ))
+
+    result = cursor.fetchone()
+
+    connection.close()
+
+    if result is None:
+        return None
+
+    return result[0]
+
 
 
 # -----------------------------------------
@@ -1295,6 +1702,132 @@ def update_airdrop_intelligence(
 # TRACKING
 # -----------------------------------------
 
+def track_airdrop(
+    chat_id,
+    airdrop_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT OR IGNORE INTO tracked_airdrops
+        (
+            chat_id,
+            airdrop_id
+        )
+        VALUES (?, ?)
+    """, (
+        chat_id,
+        airdrop_id
+    ))
+
+    connection.commit()
+
+    tracked = cursor.rowcount > 0
+
+    connection.close()
+
+    return tracked
+
+
+def untrack_airdrop(
+    chat_id,
+    airdrop_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        DELETE FROM tracked_airdrops
+
+        WHERE chat_id = ?
+        AND airdrop_id = ?
+    """, (
+        chat_id,
+        airdrop_id
+    ))
+
+    connection.commit()
+
+    removed = cursor.rowcount > 0
+
+    connection.close()
+
+    return removed
+
+
+def is_airdrop_tracked(
+    chat_id,
+    airdrop_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT 1
+
+        FROM tracked_airdrops
+
+        WHERE chat_id = ?
+        AND airdrop_id = ?
+
+        LIMIT 1
+    """, (
+        chat_id,
+        airdrop_id
+    ))
+
+    result = cursor.fetchone()
+
+    connection.close()
+
+    return result is not None
+
+
+def get_tracked_airdrops(
+    chat_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            a.id,
+            a.name,
+            a.url,
+            a.description,
+            a.source,
+            a.airdrop_type,
+            a.score,
+            a.confidence,
+            a.verification_level,
+            a.intelligence_risk_level,
+            t.tracked_at
+
+        FROM tracked_airdrops t
+
+        INNER JOIN airdrops a
+            ON a.id = t.airdrop_id
+
+        WHERE t.chat_id = ?
+
+        ORDER BY
+            t.tracked_at DESC
+    """, (
+        chat_id,
+    ))
+
+    results = cursor.fetchall()
+
+    connection.close()
+
+    return results
+
+
 def get_airdrops_for_tracking(
     limit=10
 ):
@@ -1339,7 +1872,13 @@ def get_airdrops_for_tracking(
 
             last_change_at,
 
-            next_check_at
+            next_check_at,
+
+            cross_source_matches,
+
+            matched_sources,
+
+            cross_source_match_count
 
         FROM airdrops
 
@@ -1407,7 +1946,13 @@ def get_airdrop_tracking_state(
 
             last_change_at,
 
-            next_check_at
+            next_check_at,
+
+            cross_source_matches,
+
+            matched_sources,
+
+            cross_source_match_count
 
         FROM airdrops
 
@@ -1990,7 +2535,7 @@ if __name__ == "__main__":
     create_database()
 
     print(
-        "🗄️ Database v9 ready!"
+        "🗄️ Database v1.1 ready!"
     )
 
     print(
@@ -2133,6 +2678,10 @@ if __name__ == "__main__":
 
     print(
         "🔔 Monitoring alerts: ENABLED"
+    )
+
+    print(
+        "🔗 Cross-source matching: ENABLED"
     )
 
     print(

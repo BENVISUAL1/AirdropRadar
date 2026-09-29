@@ -31,7 +31,9 @@ Calibration:
 """
 
 import re
-
+from lifecycle import analyze_lifecycle
+from participation import analyze_participation
+from risk_intelligence import analyze_risk
 from scanner import scan
 from qualifier import qualify_candidate
 
@@ -4532,6 +4534,16 @@ def run_scan():
 
             if isinstance(verification, dict):
                 result.update(verification)
+            
+            participation = analyze_participation(result)
+            result["participation"] = participation
+
+            lifecycle = analyze_lifecycle(result)
+            result["lifecycle"] = lifecycle
+
+
+            risk_intelligence = analyze_risk(result)
+            result["risk_intelligence"] = risk_intelligence
 
             verified_results.append(result)
 
@@ -4578,3 +4590,5 @@ def run_scan():
     )
 
     return scored_results
+
+

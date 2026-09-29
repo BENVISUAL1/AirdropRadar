@@ -2081,15 +2081,83 @@ def get_score_reasons(result):
             "Warnings detected"
         )
 
-    # Risk
-    if risk < 0:
+       # Risk
+    risk_intelligence = result.get(
+        "risk_intelligence",
+        {},
+    )
+
+    risk_signals = []
+
+    if isinstance(risk_intelligence, dict):
+
+        risk_signals = risk_intelligence.get(
+            "signals",
+            [],
+        )
+
+    if isinstance(risk_signals, list) and risk_signals:
+
+        for signal in risk_signals:
+
+            if not isinstance(signal, dict):
+                continue
+
+            category = str(
+                signal.get(
+                    "category",
+                    "",
+                )
+            ).strip()
+
+            value = str(
+                signal.get(
+                    "value",
+                    "",
+                )
+            ).strip()
+
+            severity = str(
+                signal.get(
+                    "severity",
+                    "",
+                )
+            ).strip().lower()
+
+            status = str(
+                signal.get(
+                    "status",
+                    "",
+                )
+            ).strip().lower()
+
+            if value:
+
+                if severity:
+
+                    reasons.append(
+                        f"Risk signal ({severity}): {value}"
+                    )
+
+                else:
+
+                    reasons.append(
+                        f"Risk signal: {value}"
+                    )
+
+            elif category:
+
+                reasons.append(
+                    f"Risk signal: {category}"
+                )
+
+    elif risk < 0:
 
         reasons.append(
             "Risk signals detected"
         )
 
     return reasons
-
 
 # ============================================================
 # SCORE BREAKDOWN
@@ -2099,7 +2167,7 @@ def get_score_breakdown(result):
     """
     Return score component breakdown.
 
-    Kept for compatibility with:
+    Kiept for compatibility with:
         live_pipeline_test.py
         other pipeline modules
     """
@@ -2962,3 +3030,5 @@ if __name__ == "__main__":
     print(
         "\n✅ Scorer v2.3 ready!"
     )
+
+

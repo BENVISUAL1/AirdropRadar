@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 import database
 from verifier import verify_candidate
 from scorer import calculate_score, calculate_confidence
+from lifecycle import analyze_lifecycle
+from risk_intelligence import analyze_risk
 
 
 # -----------------------------------------
@@ -771,7 +773,6 @@ def build_change_details(
         }
     }
 
-
 # -----------------------------------------
 # TRACK ONE AIRDROP
 # -----------------------------------------
@@ -779,6 +780,12 @@ def build_change_details(
 def track_airdrop(airdrop):
     """
     Re-check one existing airdrop.
+
+    Also calculates:
+        - lifecycle intelligence
+        - risk intelligence
+        - score changes
+        - monitoring changes
     """
 
     airdrop_id = airdrop[0]
@@ -834,6 +841,54 @@ def track_airdrop(airdrop):
     }
 
     # -------------------------------------
+    # LIFECYCLE INTELLIGENCE
+    # -------------------------------------
+
+    try:
+
+        lifecycle = analyze_lifecycle(
+            airdrop_data
+        )
+
+    except Exception as error:
+
+        print(
+            f"⚠️ Lifecycle analysis failed: "
+            f"{error}"
+        )
+
+        lifecycle = {
+            "status": "unknown",
+            "start_date": None,
+            "end_date": None,
+            "dates_detected": [],
+            "evidence": []
+        }
+
+    # -------------------------------------
+    # RISK INTELLIGENCE
+    # -------------------------------------
+
+    try:
+
+        risk_intelligence = analyze_risk(
+            airdrop_data
+        )
+
+    except Exception as error:
+
+        print(
+            f"⚠️ Risk analysis failed: "
+            f"{error}"
+        )
+
+        risk_intelligence = {
+            "risk_level": "unknown",
+            "signals": [],
+            "summary": "Risk analysis unavailable."
+        }
+
+    # -------------------------------------
     # RE-VERIFY
     # -------------------------------------
 
@@ -855,7 +910,12 @@ def track_airdrop(airdrop):
 
             "change_detected": False,
 
-            "error": str(error)
+            "error": str(error),
+
+            "lifecycle": lifecycle,
+
+            "risk_intelligence":
+                risk_intelligence
         }
 
     # -------------------------------------
@@ -878,7 +938,12 @@ def track_airdrop(airdrop):
             "change_detected": False,
 
             "error":
-                "Invalid verifier result"
+                "Invalid verifier result",
+
+            "lifecycle": lifecycle,
+
+            "risk_intelligence":
+                risk_intelligence
         }
 
     # -------------------------------------
@@ -1004,6 +1069,11 @@ def track_airdrop(airdrop):
     # BUILD SCORING RESULT
     # -------------------------------------
 
+    result["name"] = name
+    result["url"] = url
+    result["description"] = description
+    result["source"] = source
+
     result["verification_level"] = (
         new_verification_level
     )
@@ -1027,15 +1097,25 @@ def track_airdrop(airdrop):
     # -------------------------------------
     # CALCULATE SCORE
     # -------------------------------------
+
     try:
 
         score_result = calculate_score(
             result
         )
 
-        if isinstance(score_result, dict):
-            new_score = score_result.get("score", 0)
+        if isinstance(
+            score_result,
+            dict
+        ):
+
+            new_score = score_result.get(
+                "score",
+                0
+            )
+
         else:
+
             new_score = score_result
 
         new_confidence = calculate_confidence(
@@ -1054,7 +1134,12 @@ def track_airdrop(airdrop):
 
             "change_detected": False,
 
-            "error": str(error)
+            "error": str(error),
+
+            "lifecycle": lifecycle,
+
+            "risk_intelligence":
+                risk_intelligence
         }
 
     # -------------------------------------
@@ -1194,7 +1279,12 @@ def track_airdrop(airdrop):
             "change_detected": False,
 
             "error":
-                "Database update failed"
+                "Database update failed",
+
+            "lifecycle": lifecycle,
+
+            "risk_intelligence":
+                risk_intelligence
         }
 
     # -------------------------------------
@@ -1220,6 +1310,16 @@ def track_airdrop(airdrop):
 
     print(
         f"🎯 Confidence: {new_confidence}"
+    )
+
+    print(
+        f"🔄 Lifecycle: "
+        f"{lifecycle.get('status', 'unknown')}"
+    )
+
+    print(
+        f"🛡️ Risk: "
+        f"{risk_intelligence.get('risk_level', 'unknown')}"
     )
 
     # -------------------------------------
@@ -1255,10 +1355,17 @@ def track_airdrop(airdrop):
         "change_details":
             change_details,
 
+        "lifecycle":
+            lifecycle,
+
+        "risk_intelligence":
+            risk_intelligence,
+
         "next_check_at":
             next_check_at
     }
 
+    
 
 # -----------------------------------------
 # RUN TRACKING CYCLE

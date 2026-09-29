@@ -1,9 +1,12 @@
 import re
 import html
 import feedparser
-
 import config
 
+from cross_source_matching import (
+    analyze_cross_source_match,
+    normalize_project_name,
+)
 
 # -----------------------------------------
 # CLEAN DESCRIPTION
@@ -196,6 +199,209 @@ def remove_duplicates(items):
 
     return unique
 
+# -----------------------------------------
+# CROSS-SOURCE MATCHING
+# -----------------------------------------
+
+def match_cross_sources(items):
+
+    if not items:
+        return items
+
+    matched_items = [
+        dict(item)
+        for item in items
+    ]
+
+    # Prepare storage for match information
+    for item in matched_items:
+
+        item["cross_source_matches"] = []
+
+        item["matched_sources"] = []
+
+        item["cross_source_match_count"] = 0
+
+    # --------------------------------------------------------
+    # BUILD CANDIDATE GROUPS
+    # --------------------------------------------------------
+    #
+    # Only compare opportunities that have a similar
+    # normalized project-name starting point.
+    #
+
+    candidate_groups = {}
+
+    for index, item in enumerate(matched_items):
+        project_name = normalize_project_name(
+            item.get("name", "")
+        )
+
+        if not project_name:
+            continue
+
+        words = project_name.split()
+
+        if not words:
+            continue
+
+        for word in set(words):
+            if len(word) < 3:
+                continue
+
+            candidate_groups.setdefault(
+                word,
+                []
+            ).append(index)
+
+            
+    # --------------------------------------------------------
+    # COMPARE CANDIDATES
+    # --------------------------------------------------------
+
+    for indexes in candidate_groups.values():
+
+        if len(indexes) < 2:
+            continue
+
+        for position in range(
+            len(indexes)
+        ):
+
+            first_index = indexes[position]
+
+            first_item = matched_items[
+                first_index
+            ]
+
+            first_source = first_item.get(
+                "source",
+                ""
+            )
+
+            for next_position in range(
+                position + 1,
+                len(indexes)
+            ):
+
+                second_index = indexes[
+                    next_position
+                ]
+
+                second_item = matched_items[
+                    second_index
+                ]
+
+                second_source = second_item.get(
+                    "source",
+                    ""
+                )
+
+                # Same-source discoveries are not
+                # cross-source matches.
+                if first_source == second_source:
+                    continue
+
+                result = analyze_cross_source_match(
+                    first_item,
+                    second_item,
+                )
+
+                if result["match_status"] not in (
+                    "possible_match",
+                    "strong_match",
+                ):
+                    continue
+
+                # ------------------------------------------------
+                # STORE MATCH ON FIRST ITEM
+                # ------------------------------------------------
+
+                first_match = {
+                    "source": second_source,
+                    "match_status": result[
+                        "match_status"
+                    ],
+                    "match_score": result[
+                        "match_score"
+                    ],
+                    "confidence": result[
+                        "confidence"
+                    ],
+                }
+
+                matched_items[
+                    first_index
+                ]["cross_source_matches"].append(
+                    first_match
+                )
+
+                if (
+                    second_source
+                    and second_source
+                    not in matched_items[
+                        first_index
+                    ]["matched_sources"]
+                ):
+                    matched_items[
+                        first_index
+                    ]["matched_sources"].append(
+                        second_source
+                    )
+
+                # ------------------------------------------------
+                # STORE MATCH ON SECOND ITEM
+                # ------------------------------------------------
+
+                second_match = {
+                    "source": first_source,
+                    "match_status": result[
+                        "match_status"
+                    ],
+                    "match_score": result[
+                        "match_score"
+                    ],
+                    "confidence": result[
+                        "confidence"
+                    ],
+                }
+
+                matched_items[
+                    second_index
+                ]["cross_source_matches"].append(
+                    second_match
+                )
+
+                if (
+                    first_source
+                    and first_source
+                    not in matched_items[
+                        second_index
+                    ]["matched_sources"]
+                ):
+                    matched_items[
+                        second_index
+                    ]["matched_sources"].append(
+                        first_source
+                    )
+
+    # --------------------------------------------------------
+    # FINAL COUNTS
+    # --------------------------------------------------------
+
+    for item in matched_items:
+
+        item[
+            "cross_source_match_count"
+        ] = len(
+            item.get(
+                "matched_sources",
+                []
+            )
+        )
+
+    return matched_items
+
 
 # -----------------------------------------
 # MAIN SCANNER
@@ -213,12 +419,16 @@ def scan():
         items
     )
 
-    print(
-        f"📦 Total unique discoveries: "
-        f"{len(unique_items)}"
+    matched_items = match_cross_sources(
+    unique_items
     )
 
-    return unique_items
+    print(
+        f"📦 Total unique discoveries: "
+        f"{len(matched_items)}"
+    )
+
+    return matched_items
 
 
 # -----------------------------------------

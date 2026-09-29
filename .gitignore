@@ -30,3 +30,17 @@ test_page.html
 # OS
 .DS_Store
 Thumbs.db
+
+# Development backups / temporary scripts
+*.backup*
+*.before_*
+*.repaired_*
+repair_*.py
+check_*.py
+inspect_*.py
+add_*.py
+fix_*.py
+rewrite_*.py
+test_*.py
+cross_source_matching.py
+filter_before_run_scan_fix.py
