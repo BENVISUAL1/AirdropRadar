@@ -3895,7 +3895,7 @@ async def start(
 
     message = (
         f"👋 Hey {html.escape(user_name)}!\n\n"
-        "🚀 <b>Welcome to AirdropRadar V1.1!</b>\n\n"
+        "🚀 <b>Welcome to AirdropRadar V1!</b>\n\n"
         "Discover, verify, understand, and track "
         "airdrop opportunities from one place.\n\n"
         "🪂 Browse opportunities\n"
